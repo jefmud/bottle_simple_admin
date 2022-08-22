@@ -10,7 +10,9 @@
 # License - MIT License, no guarantees of suitability for your app
 #
 ##################################
-version = "0.0.2"
+__author__ = 'Jeff Muday'
+__version__ = '0.0.2'
+__license__ = 'MIT'
 
 from bottle import Bottle, redirect, abort, request
 from bottle import jinja2_template
@@ -186,6 +188,7 @@ class Admin:
         login_check() - if require_authentication return user else None
         """
         if self.require_authentication:
+            self.session.connect()
             if self.session.data.get('is_authenticated'):
                 return self.session.data['user']
             return None
@@ -204,10 +207,12 @@ class Admin:
     
     def logout_user(self):
         """logout_user() - pops the user out of the session"""
+        self.session.connect()
         if 'is_authenticated' in self.session.data:
             self.session.data['is_authenticated'] = False
         if 'user' in self.session.data:   
             self.session.data.pop('user')
+        self.session.save()
     
     
     def view_all(self):
@@ -498,7 +503,9 @@ class Admin:
                     _db[self.users_collection].update_one(idx, {'$unset': {key:""}} )
                 else:
                    # user[key] = value
-                   _db[self.users_collection].update_one(idx, {'$set': {key:value}} )
+                    if key=='password':
+                        value = encrypt_password(value)
+                    _db[self.users_collection].update_one(idx, {'$set': {key:value}} )
             return True
         return False
     
@@ -556,20 +563,27 @@ class Admin:
     
     def user_services_cli(self, args):
         """command line interface for user services"""
+        
+        error = 0
+        errors = []
+        
         if '--createuser' in args:
             username = input('Username (required): ')
             realname = input('Real Name: ')
             email = input('Email: ')
             password = input('Password (required):')
             self.create_user(username, password, realname=realname, email=email)
-            print("Created user")
+            print("*Created user*")
             return True
             
         if '--deleteuser' in args:
+            print("Delete user--")
             username = input('Username (required): ')
-            self.delete_user(username)
-            print("Deleted user")
-            return True
+            if self.delete_user(username):
+                print("*Deleted user*")
+                return True
+            else:
+                errors.append("No such user.")
             
         if '--listusers' in args:
             users = self.get_users()
@@ -582,19 +596,65 @@ class Admin:
             realname = input('Real Name: ')
             email = input('Email: ')
             password = input('Password (required):')
-            self.update_user(username, password, realname=realname, email=email)
-            print("Updated user")
-            return True
+            if self.get_user(username=username):
+                self.update_user(username, password=password, realname=realname, email=email)
+                print("*Updated user*")
+                return True
+            else:
+                errors.append("No username exists.")
         
-        if len(args) > 1:
-            print('user services:')
-            print('  --createuser')
-            print('  --deleteuser')
-            print('  --listusers')
-            print('  --updateuser')
-            return True
+        host = '127.0.0.1'
+        if '--host' in args:
+            idx = args.index('--host')
+            try:
+                host = args[idx+1]
+            except:
+                error = 1
+                errors.append("Bad or missing host.")
+                
+        port = 5000    
+        if '--port' in args:
+            idx = args.index('--port')
+            try:
+                port = int(args[idx+1])
+            except:
+                error = 1
+                errors.append("Bad or missing port argument.")
+                
+        server = "wsgiref"        
+        if '--server' in args:
+            idx = args.index('--server')
+            try:
+                server = args[idx+1]
+            except:
+                error = 1
+                errors.append("No server argument supplied.")
+        
+        if '--runserver' in args:
+            if not error:
+                try:
+                    _app.run(host=host, port=port, server=server)
+                except Exception as e:
+                    errors.append("Server error: " + str(e))
+                    
+        print(', '.join(errors))
+        usage = """
+Run usage:
+
+    python app.py --runserver [--port {5000}] [--host {127.0.0.1}] [--server {wsgiref}]
             
-        return False    
+    
+Other operations:
+
+    python app.py [--createuser | --deleteuser | --listuser | --updateuser ]
+    
+    createuser - creates a new user
+    deleteuser - deletes an existing user
+    listusers - list all users
+    updateuser - update an existing user
+"""            
+        print(usage)
+        return False
     
     
 def schema_transform(data, schema):
