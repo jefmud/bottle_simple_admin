@@ -1,0 +1,24 @@
+{% extends 'admin/base.html' %}
+
+{% block content %}
+<div class="box">
+    <h2 class="subtitle">Viewing: {{coll}} </h2>
+    
+    <a href="{{url_for('admin_view_all')}}" class="button is-default is-small">Collections</a> <a href="{{ url_for('admin_add_collection_item', coll=coll) }}" class="button is-info is-small">Add</a>
+    <hr>
+    {% for rec in data %}
+        <div class="box">
+            {% for key, val in rec.items() %}
+                {% if not key == '_id' %}
+                    <p><b>{{ key }}</b>: {{ val }}</p>
+                {% endif %}
+            {% endfor %}
+            {% if schema %}
+            <a href="{{ url_for('admin_edit_schema', coll=coll, id=rec['_id']) }}" class="button is-primary is-small">Edit With Schema</a>
+            {% endif %}
+            <a href="{{ url_for('admin_edit_fields', coll=coll, id=rec['_id']) }}" class="button is-info is-small">Edit As Fields</a>
+            <a href="{{ url_for('admin_edit_json', coll=coll, id=rec['_id']) }}" class="button is-default is-small">Edit Raw JSON</a>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

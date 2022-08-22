@@ -1,0 +1,21 @@
+{% extends 'admin/base.html' %}
+{% from 'admin/macros.html' import ckeditor, textfield %}
+
+{% block content %}
+<div class="box">
+<h3 class="title is-4">Edit {{coll}}</h3>
+<p>Please enter valid JSON</p>
+<form method="POST">
+
+    <input type="hidden" value="" name="csrf_token">
+    {{ textfield('content', 'Content', content) }}
+    {% if error %}
+        <div class="notification is-danger is-light is-center">
+            *** Invalid JSON ***
+        </div>
+    {% endif %}
+    <input class="button is-primary" type="submit" value="Save">
+    <a href="{{ url_for('admin_view_collection', coll=coll) }}" class="button is-secondary">Cancel</a>
+</form>
+</div>
+{% endblock %}

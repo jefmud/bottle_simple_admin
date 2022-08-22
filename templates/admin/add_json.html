@@ -1,0 +1,22 @@
+{% extends 'admin/base.html' %}
+{% from 'admin/macros.html' import textfield %}
+
+{% block content %}
+<div class="box">
+    <h1 class="title is-4">Add Item to: {{coll}}</h1>
+    <div class="content is-small">
+    <p><b>Free form editing (for example)</b></p>
+    <div class="box">
+    <pre>
+    key1: value1
+    key2: value2</pre>
+    </div></div>
+    <form method="POST">
+        <input type="hidden" value="" name="csrf_token">
+        {{ textfield('content', 'Content') }}
+    
+        <input class="button is-primary" type="submit" value="Save">
+        <a href="{{ url_for('admin_view_collection', coll=coll) }}" class="button is-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

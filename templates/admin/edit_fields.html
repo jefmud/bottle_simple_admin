@@ -1,0 +1,32 @@
+{% extends 'admin/base.html' %}
+{% from 'admin/macros.html' import checkbox, field, textfield, ckeditor %}
+
+{% block content %}
+<div class="box">
+<h3 class="subtitle">Edit item: {{coll}}</h3>
+<form method="POST">
+    <input type="hidden" value="{{fields.csrf_token}}" name="csrf_token">
+    {% for formfield in fields %}
+        {% if formfield.type == 'checkbox' %}
+            {{ checkbox(formfield.name, formfield.label, formfield.value) }}
+        {% elif formfield.type == 'richtext' %}
+            {{ ckeditor(formfield.name, formfield.label, formfield.value) }}
+        {% elif formfield.type == 'textarea' %}
+            {{ textfield(formfield.name, formfield.label, formfield.value) }}
+        {% elif formfield.type == 'select' %}
+            {{ select(formfield.name, formfield.label, formfield.value) }}
+        {% else %}
+            {% if not formfield.name == '_id' %}
+                {{ field(formfield.name, formfield.label, formfield.value) }}
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+
+    <hr>
+    <input class="button is-primary" type="submit" value="Save">
+    <a href="{{ url_for('admin_delete_collection_item', coll=coll, id=id) }}" class="button is-danger">Delete</a>
+    <a href="{{ url_for('admin_view_collection', coll=coll) }}" class="button is-secondary">Cancel</a>
+</form>
+</form>
+</div>
+{% endblock %}

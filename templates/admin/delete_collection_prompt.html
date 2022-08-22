@@ -1,0 +1,15 @@
+{% extends 'admin/base.html' %}
+{% from 'admin/macros.html' import checkbox, field, textfield, ckeditor %}
+
+{% block content %}
+<div class="box">
+<h1 class="title is-4">Add/Mod Collection</h1>
+<form method="POST">
+    <input type="hidden" value="{{fields.csrf_token}}" name="csrf_token">
+    {{ field("name", "DELETE Collection by typing: " + coll)}}
+    {{ checkbox('agree', 'By Checking this box you agree to DELETE collection', checked=False)}}
+    <input class="button is-danger" type="submit" value="Commit">
+    <a href="{{ url_for('admin_view_all') }}" class="button is-secondary">Cancel</a>
+</form>
+</div>
+{% endblock %}

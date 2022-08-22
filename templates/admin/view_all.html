@@ -1,0 +1,20 @@
+{% extends 'admin/base.html' %}
+{% block content %}
+<div class="box">
+<h1 class="title">Manage Collections</h1>
+<table class="table">
+    <tr><th>collection</th><th>modify</hr><th>Delete</th></tr>
+    {% for coll in collections %}
+        {% if coll != '_meta' %}
+        <tr>
+        <td><a href="{{ url_for('admin_view_collection', coll=coll) }}">{{ coll }}</a></td>
+        <td><a href="{{ url_for('admin_mod_collection', coll=coll) }}" class="button is-primary is-small">Schema</a></td>
+        <td><a href="{{ url_for('admin_delete_collection', coll=coll) }}" class="button is-danger is-small">Delete</a></td>
+        </tr>
+        {% endif %}
+    {% endfor %}
+</table>
+<hr>
+    <a href="{{ url_for('admin_add_collection')}}" class="button is-primary">Add a Collection</a>
+</div>
+{% endblock %}

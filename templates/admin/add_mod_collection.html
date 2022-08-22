@@ -1,0 +1,30 @@
+{% extends 'admin/base.html' %}
+{% from 'admin/macros.html' import checkbox, field, textfield, ckeditor %}
+
+{% block content %}
+<div class="box">
+<h1 class="title is-4">Add/Mod Collection</h1>
+<form method="POST">
+    <input type="hidden" value="{{fields.csrf_token}}" name="csrf_token">
+    {{ field("name", "Collection Name", fields.name)}}
+    <hr>
+    <h2 class='subtitle is-4'>Schema</h2>
+    <p>An optional schema may be applied to your collection.  It may be modified at any time</p>
+    <br/>
+    <div class="content is-small">
+    <p><b>Collection Schema example</b></p>
+    <div class="box">
+    cname: textbox<br/>
+    address: textarea<br/>
+    bio: richtext<br/>
+    is_verfied: checkbox<br/>
+    </div>
+    <p>(allowed types: textbox, textarea, richtext, checkbox)</p>
+    </div>
+    {{ textfield("schema", "Collection Schema (optional)", fields.schema) }}
+    <hr>
+    <input class="button is-primary" type="submit" value="Save">
+    <a href="{{ url_for('admin_view_all') }}" class="button is-secondary">Cancel</a>
+</form>
+</div>
+{% endblock %}
