@@ -9,9 +9,25 @@
 #
 # License - MIT License, no guarantees of suitability for your app
 #
+# version 0.0.1
+#   Added support for per collection schema
+#   requires TEMPLATE_PATH to find jinja2 templates (that's good that they are separate)
+#   TEMPLATE_PATH[:] = ['templates', 'bottle_simple_admin/templates']
+#
+# version 0.0.2
+#  Added support for v2 schema handles UI labels (backward compatible)
+#
+# version 0.0.3 - Added support for v3 schema (backward compatible to all)
+#   can add data via schema, schema supports JSON nesting with a
+#   dot notation. (reflected in UI)
+#   unfortunately more complex logic and Admin.edit_schema and Admin.edit_fields
+#   Admin.edit_fields() - more complex since it handles all
+#                    field-based and schema-based saves (new and existing)
+#      import known limitation - you cannot add a nested type without a schema!
+#
 ##################################
 __author__ = 'Jeff Muday'
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 __license__ = 'MIT'
 
 from bottle import Bottle, redirect, abort, request
@@ -108,7 +124,7 @@ class Admin:
         app.route(path=url_prefix + '/logout',
                   name="admin_logout",
                   callback=self.logout)
-        ####
+        #### routes to add/modify/delete data
         app.route(path=url_prefix,
                   name="admin_view_all",
                   callback=self.view_all)
@@ -119,6 +135,9 @@ class Admin:
                   name="admin_edit_fields",
                   callback=self.edit_fields,
                   method=['GET', 'POST'])
+        app.route(path=url_prefix + '/edit_schema/<coll>',
+                  name="admin_edit_schema",
+                  callback=self.edit_schema)        
         app.route(path=url_prefix + '/edit_schema/<coll>/<id>',
                   name="admin_edit_schema",
                   callback=self.edit_schema)
@@ -244,22 +263,43 @@ class Admin:
 		** combine with edit_schema() during refactor
 		"""
         if not self.login_check():
-            return abort(401)        
-        try:
-            key = {'_id': ObjectId(id)}
-        except Exception as e:
-            return jsonify({'status': 'error', 'message': 'Admin edit_fields(), key={}' + str(e)})
+            return abort(401)
+        if not id == 'new':
+            try:
+                key = {'_id': ObjectId(id)}
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': f'Admin edit_fields(), id={id}, ' + str(e)})
         
         if request.method == 'POST':
             # write the data
             try:
-                old_data = self.app.db[coll].find_one(key)
-                data = dict(request.forms)
+                if id == 'new':
+                    old_data = {}
+                else:
+                    # get existing data
+                    old_data = self.app.db[coll].find_one(key)
+                    
+                # expand from flattened to nested
+                data = expand_fields(request.forms)
+                
+                # check which fields changed
+                for k,v in old_data.items():
+                    if k not in data.keys():
+                        data[k] = ''
+                
+                # clean up
                 if '_id' in data:
                     data.pop('_id')
                 if 'csrf_token' in data:
                     data.pop('csrf_token')
-                self.app.db[coll].update_one(key, {'$set': data})
+                
+                if id == 'new':
+                    # write new data
+                    self.app.db[coll].insert_one(data)
+                else:
+                    # write existing data
+                    self.app.db[coll].update_one(key, {'$set': data})
+                    
                 data['_id'] = id
             except Exception as e:
                 return jsonify({'status': 'error', 'message': 'Admin edit_fields() update_one, ' + str(e)})
@@ -305,8 +345,8 @@ class Admin:
                 data.pop('_id')
             return render_template('admin/edit_json.html', coll=coll, content=json.dumps(data), error=None)
         
-        
-    def edit_schema(self, coll, id):
+    
+    def edit_schema(self, coll, id='new'):
         """
         edit_schema('collectionName', id) - edit collection item with based on a schema
         
@@ -316,20 +356,26 @@ class Admin:
         supports GET and POST methods
         """
         if not self.login_check():
-            return abort(401)        
-        try:
-            key = {'_id': ObjectId(id)}
-        except Exception as e:
-            return jsonify({'status': 'error', 'message': 'Admin edit_schema(), key error, ' + str(e)})
+            return abort(401)
+        
+        if id=='new':
+            data = {'_id': 'new'}
+        else:
+            try:
+                key = {'_id': ObjectId(id)}
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': 'Admin edit_schema(), key error, ' + str(e)})
         
         # view the data
         try:
             schema = self.app.db['_meta'].find_one({'name':coll})
-            data = self.app.db[coll].find_one(key)
-            fields = schema_transform(data, schema)
+            if not id == 'new':
+                # get existing record
+                data = self.app.db[coll].find_one(key)
+            fields = _schema_transform(data, schema)
             data['_id'] = str(data['_id'])
         except Exception as e:
-            return jsonify({'status': 'error', 'message': 'Admin edit_schema(), view' + str(e)})
+            return jsonify({'status': 'error', 'message': 'Admin edit_schema(), view ' + str(e)})
         
         return render_template('admin/edit_schema.html', coll=coll, fields=fields, id=data['_id'])
  
@@ -352,7 +398,7 @@ class Admin:
   
     
     def add_mod_collection(self, coll=None):
-        """Add or Modify a collection"""
+        """Add or Modify a collection name (and Schema)"""
         if not self.login_check():
             return abort(401)        
         fields = {}
@@ -655,9 +701,196 @@ Other operations:
 """            
         print(usage)
         return False
+
+def _merge_dicts(dict1, dict2):
+    """ 
+    _merge_dicts(dict1, dict2) - merge two dictionaries, return the union.
+    Using yield increases efficiency.
+    From
+    """
+    for k in set(dict1.keys()).union(dict2.keys()):
+        if k in dict1 and k in dict2:
+            if isinstance(dict1[k], dict) and isinstance(dict2[k], dict):
+                # unfortunately, a recursive call
+                yield (k, dict(_merge_dicts(dict1[k], dict2[k])))
+            else:
+                # If one of the values is not a dict, you can't continue merging it.
+                # Value from second dict overrides one in first and we move on.
+                yield (k, dict2[k])
+                # Alternatively, replace this with exception raiser to alert you of value conflicts
+        elif k in dict1:
+            yield (k, dict1[k])
+        else:
+            yield (k, dict2[k])
+    
+def expand_fields(fields):
+    """
+    expand_fields(fields) - expand flattened fields to nested fields
+    : params data - a flattened record
+    returns expanded fields
+    """
+    data = {}
+    for name, value in fields.items():
+        data = dict( _merge_dicts(data, _nest_value(name, value)) )
+    return data
+
+def _nest_value(name, value):
+    """
+    nest_value(name, value) - put the fields from a 
+    "flattened" dotted name into nested structure and return
+    
+    :param name - the flattened dotted name
+    :param value - the actual value
+    
+    return nested_value
+    
+    How can I do this cleaner with a dict structure?
+    """
+    data = {}
+    parts = name.strip().split('.')
+    if len(parts) == 1:
+        data.update({parts[0]:value})
+    elif len(parts) == 2:
+        data.update({parts[0]: {parts[1]:value}})
+    elif len(parts) == 3:
+        data.update( {parts[0]: { parts[1] : { parts[2] : value } } } )
+    else:
+        raise ValueError("Schmema depth exceeds maximum limit of 3")
+    return data
+    
+def put_nested_value(name, value, data):
+    """
+    put_nested_value(name, data) - get the fields from a "flattened" dotted name
+    :param name - the flattened dotted name
+    :param value - the actual value
+    :param data - data dictionary of document
+    return value
+    
+    How can I do this cleaner with a dict structure?
+    """
+    parts = name.strip().split('.')
+    if len(parts) == 1:
+        data.update({parts[0]:value})
+    elif len(parts) == 2:
+        data.update({parts[0]: {parts[1]:value}})
+    elif len(parts) == 3:
+        data.update( {parts[0]: { parts[1] : { parts[2] : value } } } )
+    else:
+        raise ValueError("Schmema depth exceeds maximum limit of 3")
+                                
     
     
-def schema_transform(data, schema):
+def get_nested_value(name, data):
+    """
+    get_nested_value(name, data) - get the fields from a "flattened" dotted name
+    :param name - the flattened dotted name
+    :param data - data dictionary of document
+    return value
+    """
+    parts = name.strip().split('.')
+    value = data
+    for part in parts:
+        value = value.get(part, '')
+        if not isinstance(value, dict):
+            return value
+    return None
+
+
+def _schema_transform(data, schema):
+    """_schema_transform(data, schema) - create fields from data document and schema
+    :param data - the document data
+    :param schema - the document schema
+    return fields
+    
+    A schema is defined on one line as shown below.
+    
+    dataName : controlToUse :Label of the collection : type : defaultValue
+    
+    type (simple types only)
+    
+    """
+    # grab the schema buffer
+    schema_lines = schema.get('schema').split('\n')
+    fields = []
+    for line in schema_lines:
+        if line:
+            field = {}
+            parts = line.split(':') # break it on ':'
+            # name
+            field['name'] = parts[0].strip() # the name part
+            
+            field['control'] = parts[1].strip() # get the type
+            
+            if len(parts) > 2: 
+                field['label'] = parts[2].strip() # the label
+            else:
+                field['label'] = field['name'].title()
+                
+            if len(parts) > 3:
+                field['type'] = parts[3].strip()
+            
+            # value for field(data) is none, get it from schema
+            if data == {}:
+                if len(parts) > 4:
+                    field['value'] = parts[4].strip()
+                else:
+                    # if value is missing, make it an empty string
+                    field['value'] = ''
+            else:
+                # transform multiple depths
+                value = get_nested_value(field['name'], data)
+                field['value'] = value
+                
+            fields.append(field)
+    return fields
+
+def _schema_transform_v2(data, schema):
+    """_schema_transform(data, schema) - create fields from data document and schema
+    :param data - the document data
+    :param schema - the document schema
+    return fields
+    
+    A schema is defined on one line as shown below.
+    
+    dataName : controlToUse :Label of the collection : type : defaultValue
+    
+    type (simple types only)
+    
+    """
+    # grab the schema buffer
+    schema_lines = schema.get('schema').split('\n')
+    fields = []
+    for line in schema_lines:
+        if line:
+            field = {}
+            parts = line.split(':') # break it on ':'
+            # name
+            field['name'] = parts[0].strip() # the name part
+            
+            field['control'] = parts[1].strip() # get the type
+            
+            if len(parts) > 2: 
+                field['label'] = parts[2].strip() # the label
+            else:
+                field['label'] = field['name'].title()
+                
+            if len(parts) > 3:
+                field['type'] = parts[3].strip()
+            
+            # value for field(data) is none, get it from schema
+            if data == {}:
+                if len(parts) > 4:
+                    field['value'] = parts[4].strip()
+                else:
+                    # if value is missing, make it an empty string
+                    field['value'] = ''
+            else:
+                field['value'] = data.get(field['name'])
+                
+            fields.append(field)
+    return fields
+    
+def _schema_transform_v1(data, schema):
     """schema_transform(data, schema) - create fields from data document and schema
     :param data - the document data
     :param schema - the document schema
