@@ -7,13 +7,13 @@
 <form method="POST" action="{{ url_for('admin_edit_fields', coll=coll, id=id) }}">
     <input type="hidden" value="{{fields.csrf_token}}" name="csrf_token">
     {% for formfield in fields %}
-        {% if formfield.type == 'checkbox' %}
+        {% if formfield.control == 'checkbox' %}
             {{ checkbox(formfield.name, formfield.label, formfield.value) }}
-        {% elif formfield.type == 'richtext' %}
+        {% elif formfield.control == 'richtext' %}
             {{ ckeditor(formfield.name, formfield.label, formfield.value) }}
-        {% elif formfield.type == 'textarea' %}
+        {% elif formfield.control == 'textarea' %}
             {{ textfield(formfield.name, formfield.label, formfield.value) }}
-        {% elif formfield.type == 'select' %}
+        {% elif formfield.control == 'select' %}
             {{ select(formfield.name, formfield.label, formfield.value) }}
         {% else %}
             {% if not formfield.name == '_id' %}
