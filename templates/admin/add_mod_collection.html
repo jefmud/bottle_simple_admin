@@ -19,10 +19,11 @@
     identity.first: textbox : First Name<br/>
     identity.last: textbox : Last Name<br/>
     address: textarea<br/>
+    date_in: date: Date of Intake<br />
     bio: richtext<br/>
     is_verfied: checkbox<br/>
     </div>
-    <p>(allowed types: textbox, textarea, richtext, checkbox)</p>
+    <p>(Allowed HTML5 control_types: textbox, textarea, richtext, checkbox, color, date, date-time, time, password, url, tel, etc.)</p>
     </div>
     {{ textfield("schema", "Collection Schema (optional)", fields.schema) }}
     <hr>

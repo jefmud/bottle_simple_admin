@@ -118,7 +118,7 @@
 </div>
 {% endmacro %}
 
-{% macro field(name, label, value="", placeholder="", category="", licon="", ricon="", help="", size="", is_password=False) -%}
+{% macro field(name, label, value="", ctype="", placeholder="", category="", licon="", ricon="", help="", size="") -%}
 {# an attempt at a generic input field with full Bulma styling #}
 {# licon = lefticon #}
 {# ricon = righticon #}
@@ -135,7 +135,7 @@
   {% else -%}
   <div class="control">
   {% endif -%}
-      <input class="input {{ category }} {{size}}" type={% if is_password %}"password"{% else %}"text"{% endif %} name="{{ name }}" placeholder="{{ placeholder }}" {% if value %}value="{{ value }}"{% endif %}>
+      <input class="input {{ category }} {{size}}" type={% if ctype %}"{{ctype}}"{% else %}"text"{% endif %} name="{{ name }}" placeholder="{{ placeholder }}" {% if value %}value="{{ value }}"{% endif %}>
     {% if licon %}
     <span class="icon is-small is-left">
       <i class="fas {{ licon }}"></i>

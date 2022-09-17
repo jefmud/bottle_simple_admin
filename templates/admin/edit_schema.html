@@ -17,7 +17,7 @@
             {{ select(formfield.name, formfield.label, formfield.value) }}
         {% else %}
             {% if not formfield.name == '_id' %}
-                {{ field(formfield.name, formfield.label, formfield.value) }}
+                {{ field(formfield.name, formfield.label, formfield.value, formfield.control) }}
             {% endif %}
         {% endif %}
     {% endfor %}
