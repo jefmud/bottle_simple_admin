@@ -24,10 +24,18 @@
 #   Admin.edit_fields() - more complex since it handles all
 #                    field-based and schema-based saves (new and existing)
 #      import known limitation - you cannot add a nested type without a schema!
+#   This version also allows support of a number of HTML5 input types
+#
+# version 0.0.4 - Added support for list-views.
+#    A list-view is a simple schema extension that allows the user to define
+#    a list-view by using a simple caret ('^') prefix in front of the field
+#    that will show up in a list view.  It paves the way for data required type validation in the
+#    next version by use of an asterisk ('*') in front of a required (validated) field
+#
 #
 ##################################
 __author__ = 'Jeff Muday'
-__version__ = '0.0.3.1'
+__version__ = '0.0.4'
 __license__ = 'MIT'
 
 from bottle import Bottle, redirect, abort, request
@@ -36,6 +44,7 @@ from montydb import MontyClient, set_storage
 import json
 from pymongo import MongoClient
 from bson import ObjectId
+from functools import wraps
 
 import os
 from passlib.context import CryptContext
@@ -45,6 +54,11 @@ pwd_context = CryptContext(
         default="pbkdf2_sha256",
         pbkdf2_sha256__default_rounds=30000
 )
+
+
+# local session placeholder
+_admin_session = None
+
 
 def encrypt_password(password):
     return pwd_context.encrypt(password)
@@ -219,6 +233,19 @@ class Admin:
         else:
             return True
         
+    
+    def login_required(self, f):
+        """login_required(f) is a decorator for Flask routes that require a login
+        : param {f} : function to decorate
+        : return : decorated function
+        """
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            self.session.connect()
+            if 'user' not in self.session.data:
+                return redirect(url_for('admin_login'))
+            return f(*args, **kwargs)
+        return decorated_function    
 
     def logout(self, next=None):
         """
@@ -248,18 +275,26 @@ class Admin:
         collections = self.app.db.list_collection_names()
         return render_template('admin/view_all.html', collections=collections )
     
-    
     def view_collection(self, coll):
-        """
-        view_collection('collectionName') - view a specific collection in the database
-        """
+        """view_all(coll) - view a specific collection in the database"""
         if not self.login_check():
-            return redirect(self.app.get_url('admin_login'))        
+            return redirect(url_for('admin_login'))        
         data = list(self.app.db[coll].find())
         schema = self.app.db['_meta'].find_one({'name':coll})
+        # santize id to string
         for doc in data:
             doc['_id'] = str(doc['_id'])
-        return render_template('admin/view_collection.html', coll=coll, data=data, schema=schema)
+    
+        if schema:
+            # check for list-view
+            if '^' in schema['schema']:
+                docs = []
+                for raw_doc in data:
+                    this_doc = _schema_transform(raw_doc, schema)
+                    docs.append(this_doc)
+                return render_template('admin/view_collection_list.html', docs=docs, coll=coll)
+    
+        return render_template('admin/view_collection.html', coll=coll, data=data, schema=schema)    
 
 
     def edit_json(self, coll, id):
@@ -779,18 +814,31 @@ def _get_nested_value(name, data):
             return value
     return None
 
-
 def _schema_transform(data, schema):
     """_schema_transform(data, schema) - create fields from data document and schema. These
     fields are used to create a form for editing the document. The fields are ordered.
 
     :param data - the document data
     :param schema - the document schema
-    return fields
     
-    A schema is defined on one line as shown below.
+    return
+        fields
+    
+    A schema for each field is defined on one line as shown below.
     
     dataName : controlToUse :Label of the collection : type : defaultValue
+    
+    implemented:
+    A caret (^) is used to indicate that the field is shown in a list-view.
+    
+    not implemented in this version:
+    A asterisk (*) is used to indicate a required field.
+    A pipe (|) is used to indicate a list of values.
+    
+    
+    for example:
+    ^name : textbox : Name
+    
     
     type (simple types only)
     
@@ -801,8 +849,24 @@ def _schema_transform(data, schema):
     for line in schema_lines:
         if line:
             field = {}
-            parts = line.split(':') # break it on ':'
-            # name
+            
+            # if there is an '_id' field, then this is an existing document
+            if '_id' in data:
+                field.update({'_id': data['_id']})
+                
+            # break it on ':'
+            parts = line.split(':')
+            
+            # name part
+            
+            # is it a list-view field?
+            field['list-view'] = '^' in parts[0]
+            parts[0] = parts[0].replace('^', '')
+            
+            # is it a required field?
+            field['required'] = '*' in parts[0]
+            parts[0] = parts[0].replace('*', '')
+            
             field['name'] = parts[0].strip() # the name part
             
             field['control'] = parts[1].strip() # get the type
@@ -829,7 +893,6 @@ def _schema_transform(data, schema):
                 
             fields.append(field)
     return fields
-
 
 def _unflatten(dictionary, separator='.'):
     """
@@ -894,7 +957,6 @@ def cook_data(raw_data):
             key = key.strip()
             data[key] = value.strip()
     return data
-
 
 if __name__ == '__main__':
     print("... Bottle_Simple_Admin is not intended for direct execution. ...")

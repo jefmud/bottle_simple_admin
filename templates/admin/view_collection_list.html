@@ -1,0 +1,40 @@
+{% extends 'admin/base.html' %}
+
+{% block content %}
+<div class="box">
+    <h2 class="subtitle">Viewing: {{coll}} </h2>
+    
+    <a href="{{url_for('admin_view_all')}}" class="button is-default is-small">Collections</a>
+    <a href="{{ url_for('admin_edit_schema', coll=coll, id='new') }}" class="button is-primary is-small">Add Using Schema</a>
+    <a href="{{ url_for('admin_add_collection_item', coll=coll) }}" class="button is-info is-small">Add Simple</a>
+    
+    <hr>
+    <table class="table is-bordered">
+    {% if docs %}
+        <thead>
+            {% for item in docs[0] %}
+                {% if item["list-view"] %}
+                    <th class="has-text-centered">{{item.label}}</th>
+                {% endif %}
+            {% endfor %}
+            <th class="has-text-centered">Actions</th>
+        </thead>
+    {% endif %}
+
+    {% for doc in docs %}
+    <tr>
+        {% for item in doc %}
+            {% if item["list-view"] %}
+                <td>{{item.value}}</td>
+                {% set id=item.id %}
+            {% endif %}
+        {% endfor %}
+        <td>
+            <a href="{{ url_for('admin_edit_schema', coll=coll, id=doc[0]._id) }}" class="button is-info is-small">Edit</a>
+            <a href="{{ url_for('admin_edit_json', coll=coll, id=doc[0]._id) }}" class="button is-default is-small">JSON</a>
+        </td>
+    </tr>
+    {% endfor %}
+    </table>
+</div>
+{% endblock %}
