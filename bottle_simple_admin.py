@@ -123,7 +123,7 @@ class Admin:
         if db_uri:
             app.client = MongoClient(db_uri)
         else:
-            set_storage(db_file)
+            set_storage(db_file, use_bson=True)
             app.db_file = db_file
             app.client = MontyClient(db_file)
             
