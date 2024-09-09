@@ -1,3 +1,95 @@
+{% macro filecontrol(name, label, value="", placeholder="Choose a file...") %}
+<div class="field">
+    <label class="label" for="{{ name }}">{{ label }}</label>
+    <div class="control">
+        <div class="file has-name">
+            <label class="file-label">
+                <input class="file-input" type="file" name="{{ name }}" id="{{ name }}">
+                <span class="file-cta">
+                    <span class="file-icon">
+                        <i class="fas fa-upload"></i>
+                    </span>
+                    <span class="file-label">
+                        {{ placeholder }}
+                    </span>
+                </span>
+                <span class="file-name">
+                    {{ value if value else placeholder }}
+                </span>
+            </label>
+        </div>
+    </div>
+</div>
+
+<script>
+  document.querySelector('#{{ name }}').addEventListener('change', function() {
+      let fileInput = this;
+      let formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+
+      // Create progress bar elements
+      let progressBarContainer = document.createElement('div');
+      progressBarContainer.classList.add('progress');
+      progressBarContainer.style.marginTop = '1rem';
+      let progressBar = document.createElement('progress');
+      progressBar.classList.add('progress-bar', 'is-primary');
+      progressBar.max = 100;
+      progressBar.value = 0;
+      progressBarContainer.appendChild(progressBar);
+      fileInput.closest('.field').appendChild(progressBarContainer);
+
+      // Create XMLHttpRequest to handle file upload
+      let xhr = new XMLHttpRequest();
+      xhr.open('POST', '/admin/upload_file', true);
+
+      // Update progress bar during the upload
+      xhr.upload.onprogress = function(event) {
+          if (event.lengthComputable) {
+              let percentComplete = (event.loaded / event.total) * 100;
+              progressBar.value = percentComplete;
+          }
+      };
+
+      // Handle response from the server
+      xhr.onload = function() {
+          status = xhr.status;
+          console.log(status);
+          if (xhr.status == 200) {
+              let response = JSON.parse(xhr.responseText);
+              if (response.file_path) {
+                  // Update the displayed file name
+                  document.querySelector('.file-name').innerText = response.file_path;
+
+                  // Optionally, you can store the full file path in a hidden input
+                  let hiddenInput = document.createElement('input');
+                  hiddenInput.type = 'hidden';
+                  hiddenInput.name = '{{ name }}_path';
+                  hiddenInput.value = response.file_path;
+                  fileInput.closest('form').appendChild(hiddenInput);
+              } else {
+                  alert('File upload failed');
+              }
+          } else {
+              alert('An error occurred while uploading the file');
+          }
+
+          // Remove the progress bar after completion
+          progressBarContainer.remove();
+      };
+
+      // Handle error during upload
+      xhr.onerror = function() {
+          alert('An error occurred while uploading the file');
+          progressBarContainer.remove();
+      };
+
+      // Send the form data
+      xhr.send(formData);
+  });
+</script>
+
+{% endmacro %}
+
 {% macro form_csrf() %}
   {# insert a csrf_token into a form #}
   <input name="_csrf_token" type="hidden" value="{{ g.macro_csrf_token }}">
@@ -10,10 +102,12 @@
   <div class="control">
     <script src="https://cdn.ckeditor.com/4.6.2/standard/ckeditor.js"></script>
     <textarea name="{{ name }}" class="textarea" placeholder="Textarea">{{ value }}</textarea>
-    <script>CKEDITOR.replace( '{{ name }}' );</script>
+    <script>CKEDITOR.replace( '{{ name }}', {versionCheck: false} );</script>
   </div>
 </div>
 {% endmacro %}
+
+
 
 {% macro wysihtml5(name, label, value="") %}
 <div class="field {{ modifier }}">
