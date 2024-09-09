@@ -32,16 +32,24 @@
 #    that will show up in a list view.  It paves the way for data required type validation in the
 #    next version by use of an asterisk ('*') in front of a required (validated) field
 #
+# version 0.0.5 - Added support for file type upload
+#    A file field or type is indicated by the "file" part of the schema.
+#    The file is uploaded with a control and backing JavaScript macro.  
+#    Files are somewhat raw in that they can only be uploaded to a special
+#    directory /static/uploads/YYYYMM/<your_file_name>  where YYYY is year and MM is month.
+#    The JavaScript control is somewhat flexible because you can upload multiple files.
+#    In a later version I will add a file manager, which may be a better tactic
 #
 ##################################
 __author__ = 'Jeff Muday'
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 __license__ = 'MIT'
 
-from bottle import Bottle, redirect, abort, request
+from bottle import Bottle, redirect, abort, request, response, static_file
 from bottle import jinja2_template
 from montydb import MontyClient, set_storage
 import json
+import datetime
 from pymongo import MongoClient
 from bson import ObjectId
 from functools import wraps
@@ -107,6 +115,8 @@ class Admin:
                  admin_database='bottle_admin',
                  users_collection='bottle_users',
                  require_authentication=True,
+                 upload_folder="./static/uploads",
+                 static_folder='./static',
                  ):
         """__init__() - initialize the administration area"""
         global _db, _app
@@ -129,6 +139,10 @@ class Admin:
             
         app.db = app.client[admin_database]
         _db = app.db
+        
+        # configure upload
+        self.app.config['UPLOAD_FOLDER'] = upload_folder
+        self.app.config['STATIC_FOLDER'] = static_folder
         
         ### Add the routes ###
         app.route(path=url_prefix + '/login',
@@ -179,10 +193,23 @@ class Admin:
             path=url_prefix + '/modify/<coll>',
             name="admin_mod_collection",
             callback=self.add_mod_collection,
-            method=['GET', 'POST'],
-        )
+            method=['GET', 'POST'])
+        app.route(
+            path=url_prefix + '/upload_file',
+            name="admin_upload_file",
+            callback=self.upload_file,
+            method=['POST'])
+        app.route(
+            path='/static/<path:path>',
+            name="admin_send_file",
+            callback=self.send_file,
+            method=['GET'])    
         
-        
+
+    def send_file(self, path):
+        """send a static file"""
+        return static_file(path, root=self.app.config['STATIC_FOLDER'])
+            
     def login(self, filename=None, next=None):
         """
         login() - simple login with bootstrap or a Jinja2 file of your choice
@@ -265,7 +292,42 @@ class Admin:
             self.session.data.pop('user')
         self.session.save()
     
-    
+    def upload_file(self):
+        """Upload a file requested by admin user, POST only"""
+        # login check
+        if not self.login_check():
+            return redirect(self.app.get_url('admin_login'))
+
+        # grab the file from the request
+        upload = request.files.get('file')
+        
+        if not upload:
+            response.status = 400
+            return {'error': 'No file part'}
+        
+        file_name = upload.filename
+        if file_name == '':
+            response.status = 400
+            return {'error': 'No selected file'}
+
+        # Create year and month directory
+        now = datetime.datetime.now()
+        year_month = now.strftime("%Y%m")
+
+        # join upload folder with year and month, mkdir if not exist
+        upload_path = os.path.join(self.app.config['UPLOAD_FOLDER'], year_month)
+        os.makedirs(os.path.dirname(upload_path), exist_ok=True)
+
+        # save the file
+        save_path = os.path.join(upload_path, file_name)
+        upload.save(save_path)
+        
+        # return response content type
+        response.content_type = 'application/json'
+
+        # return the path name of the file
+        return json.dumps({'file_path': save_path})
+
     def view_all(self):
         """
         view_all() - view all collections in the database
@@ -390,7 +452,7 @@ class Admin:
         """
         edit_schema('collectionName', id) - edit collection item with based on a schema
         
-        coll - collection name
+        coll - collection name, str
         id - the database id
         
         supports GET and POST methods
