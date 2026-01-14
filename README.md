@@ -1,6 +1,6 @@
 # bottle_simple_admin
 
-The purpose of this repository is to provide a simple adminstration and user authentication for Bottle.
+The purpose of this repository is to provide a simple adminstration and user authentication for Bottle.  By itself, it is a somewhat minimal interface/dashboard that can extend into other web projects.
 
 ## requirements
 
