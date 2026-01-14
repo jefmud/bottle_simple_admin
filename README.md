@@ -2,6 +2,8 @@
 
 The purpose of this repository is to provide a simple adminstration and user authentication for Bottle.  By itself, it is a somewhat minimal interface/dashboard that can extend into other web projects.
 
+You could use it alone, but is more interesting for users to co-program it as the "batteries included" part of the framework.
+
 ## requirements
 
 * bottle (https://github.com/bottlepy/bottle)
